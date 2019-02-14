@@ -41,7 +41,7 @@ class Lidar:
         points = np.array([np.multiply(ranges, np.cos(theta)), np.multiply(ranges, np.sin(theta))]).T
         clustering = MeanShift(bandwidth=.6).fit(points)
         all_clusters = clustering.cluster_centers_
-        orientations = self.compute_orientations(theta, clustering.labels_)
+        orientations = self.compute_orientations(points, clustering.labels_)
         poses = []
         for i in range(np.shape(all_clusters)[0]):
             point = Pose()
@@ -74,14 +74,17 @@ class Lidar:
         label_ids = Counter(labels)
         orientations = []
         for i, _ in label_ids.items():
-            values = data[labels == i]
+            values = data[labels == i,:]
             max_orientation = self.get_max_hist(values)
             orientations.append(max_orientation)
 
         return orientations
 
     def get_max_hist(self, values):
-        return np.average(values)
+        hist = [np.arctan2(values[i+1,1] - values[i-1,1], values[i+1,0] - values[i-1,0])
+                for i in range(1, values.shape[0] - 1)]
+        counts, bins = np.histogram(hist)
+        return bins[np.argmax(counts)]
 
 
 
