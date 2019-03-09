@@ -3,7 +3,7 @@ project(lidar_slam)
 
 ## Find catkin and any catkin packages
 find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs sensor_msgs laser_geometry)
-find_package(PCL 1.3 REQUIRED COMPONENTS common io)
+find_package(PCL 1.3 REQUIRED)
 
 ## Declare a catkin package
 catkin_package()

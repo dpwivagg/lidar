@@ -5,19 +5,72 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "sensor_msgs/LaserScan.h"
-#include "sensor_msgs/PointCloud.h"
+#include "sensor_msgs/PointCloud2.h"
 #include "laser_geometry/laser_geometry.h"
+#include "pcl/io/pcd_io.h"
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl/registration/icp.h>
 
 #include <sstream>
 
-laser_geometry::LaserProjection projector_;
 
-void callback(const sensor_msgs::LaserScan::ConstPtr& scan_in) {
-    sensor_msgs::PointCloud cloud;
-    projector_.projectLaser(*scan_in, cloud);
+class LaserScanDatabase {
 
-    chatter_pub.publish(cloud);
-}
+public:
+    LaserScanDatabase() {
+        pub_ = n_.advertise<sensor_msgs::PointCloud>("chatter", 1000);
+        sub_ = n_.subscribe("scan", 1, &LaserScanDatabase::callback, this);
+    }
+
+    void callback(const sensor_msgs::LaserScan::ConstPtr& scan_in) {
+        std::cout << "Recieved new point, checking for matches in the database" << std::endl;
+        sensor_msgs::PointCloud2 cloud;
+        projector_.projectLaser(*scan_in, cloud);
+//        pcl::io::savePCDFile("hello_test.pcd", *cloud);
+
+        pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in (new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZ>);
+
+        pcl::fromROSMsg(cloud, *cloud_in);
+        icp.setInputSource(cloud_in);
+
+        if(saved_clouds.size() == 0) {
+            saved_clouds.push_back(cloud_in);
+        }
+
+        for(int i = 0; i < saved_clouds.size(); i++) {
+            // do something to compare the cloud with each one in the DB
+            // if no match, add the cloud to the DB
+            *cloud_out = *saved_clouds[i];
+            // compare them
+            icp.setInputTarget(cloud_out);
+            pcl::PointCloud<pcl::PointXYZ> Final;
+            icp.align(Final);
+            if(icp.getFitnessScore() < 0.15) return; // If it matches one, do nothing, end the callback
+
+//            std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+//                      icp.getFitnessScore() << std::endl;
+//            std::cout << icp.getFinalTransformation() << std::endl;
+        }
+        saved_clouds.push_back(cloud_out);
+        std::cout << "Size of database: " << saved_clouds.size() << std::endl;
+    }
+
+
+private:
+    laser_geometry::LaserProjection projector_;
+
+    ros::NodeHandle n_;
+    ros::Publisher pub_;
+    ros::Subscriber sub_;
+
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> saved_clouds;
+
+};
+
+
 
 int main(int argc, char **argv)
 {
@@ -33,20 +86,14 @@ int main(int argc, char **argv)
      */
     ros::init(argc, argv, "pcl_demo");
 
-    ros::NodeHandle n;
+    LaserScanDatabase lsdb;
 
-    ros::Publisher chatter_pub = n.advertise<sensor_msgs::PointCloud>("chatter", 1000);
-    ros::Subscriber lidar_point_clouds = n.subscribe("scan", 1, callback);
+    ros::Rate loop_rate(10); // 2 seconds
 
-    ros::Rate loop_rate(10);
-
-    int count = 0;
     while (ros::ok())
     {
         ros::spinOnce();
-
         loop_rate.sleep();
-        ++count;
     }
 
 
