@@ -20,6 +20,8 @@ class LaserScanDatabase {
 public:
     LaserScanDatabase() {
         pub_ = n_.advertise<sensor_msgs::PointCloud2>("pclmatch", 1000);
+        pub_b = n_.advertise<sensor_msgs::PointCloud2>("scanbefore", 1000);
+        pub_a = n_.advertise<sensor_msgs::PointCloud2>("scanafter", 1000);
         sub_ = n_.subscribe("rescan", 1, &LaserScanDatabase::callback, this);
     }
 
@@ -42,6 +44,8 @@ public:
             // do something to compare the cloud with each one in the DB
             // if no match, add the cloud to the DB
             *cloud_out = *saved_clouds[i];
+            pcl::toROSMsg(*cloud_out, cloud_publish);
+            pub_b.publish(cloud_publish);
             icp.setInputTarget(cloud_out);
             pcl::PointCloud<pcl::PointXYZ> Final;
             icp.align(Final);
@@ -50,7 +54,7 @@ public:
                       icp.getFitnessScore() << std::endl;
             if(icp.getFitnessScore() < 0.15) {
                 std::cout << "final match selected" << std::endl;
-                pcl::toROSMsg(*icp.getInputTarget(), cloud_publish);
+                pcl::toROSMsg(*cloud_out, cloud_publish);
                 pub_.publish(cloud_publish);
                 return;
             } // If it matches one, do nothing, end the callback
@@ -65,7 +69,7 @@ private:
     laser_geometry::LaserProjection projector_;
 
     ros::NodeHandle n_;
-    ros::Publisher pub_;
+    ros::Publisher pub_, pub_b, pub_a;
     ros::Subscriber sub_;
 
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> saved_clouds;
