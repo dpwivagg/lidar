@@ -19,15 +19,15 @@ class LaserScanDatabase {
 
 public:
     LaserScanDatabase() {
-        pub_ = n_.advertise<sensor_msgs::PointCloud>("chatter", 1000);
-        sub_ = n_.subscribe("scan", 1, &LaserScanDatabase::callback, this);
+        pub_ = n_.advertise<sensor_msgs::PointCloud2>("pclmatch", 1000);
+        sub_ = n_.subscribe("rescan", 1, &LaserScanDatabase::callback, this);
     }
 
     void callback(const sensor_msgs::LaserScan::ConstPtr& scan_in) {
         std::cout << "Recieved new point, checking for matches in the database" << std::endl;
         sensor_msgs::PointCloud2 cloud;
+        sensor_msgs::PointCloud2 cloud_publish;
         projector_.projectLaser(*scan_in, cloud);
-//        pcl::io::savePCDFile("hello_test.pcd", *cloud);
 
         pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in (new pcl::PointCloud<pcl::PointXYZ>);
@@ -36,22 +36,24 @@ public:
         pcl::fromROSMsg(cloud, *cloud_in);
         icp.setInputSource(cloud_in);
 
-        if(saved_clouds.size() == 0) {
-            saved_clouds.push_back(cloud_in);
-        }
+        if(saved_clouds.size() == 0) saved_clouds.push_back(cloud_in);
 
         for(int i = 0; i < saved_clouds.size(); i++) {
             // do something to compare the cloud with each one in the DB
             // if no match, add the cloud to the DB
             *cloud_out = *saved_clouds[i];
-            // compare them
             icp.setInputTarget(cloud_out);
             pcl::PointCloud<pcl::PointXYZ> Final;
             icp.align(Final);
-            if(icp.getFitnessScore() < 0.15) return; // If it matches one, do nothing, end the callback
 
-//            std::cout << "has converged:" << icp.hasConverged() << " score: " <<
-//                      icp.getFitnessScore() << std::endl;
+            std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+                      icp.getFitnessScore() << std::endl;
+            if(icp.getFitnessScore() < 0.15) {
+                std::cout << "final match selected" << std::endl;
+                pcl::toROSMsg(*icp.getInputTarget(), cloud_publish);
+                pub_.publish(cloud_publish);
+                return;
+            } // If it matches one, do nothing, end the callback
 //            std::cout << icp.getFinalTransformation() << std::endl;
         }
         saved_clouds.push_back(cloud_out);
