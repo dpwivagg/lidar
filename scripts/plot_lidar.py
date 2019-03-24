@@ -22,12 +22,14 @@ from collections import Counter
 class Lidar:
     def __init__(self):
         self.feature_dict = {}
+        self.feature_list_list = []
         #  This constructor sets up class variables and pubs/subs
         self._corner_pub = rospy.Publisher('/corners', PoseArray, queue_size=1)
 
         rospy.Subscriber('/rescan', LaserScan, self.sensorCallback, queue_size=1)
 
     def sensorCallback(self, data):
+        print "Received new points, checking for feature matches"
         angle_min = data.angle_min
         angle_max = data.angle_max
         inc = data.angle_increment
@@ -43,6 +45,7 @@ class Lidar:
         all_clusters = clustering.cluster_centers_
         orientations = self.compute_orientations(points, clustering.labels_)
         poses = []
+        poses_generic = []
         for i in range(np.shape(all_clusters)[0]):
             point = Pose()
             point.position.x = all_clusters[i,0]
@@ -56,15 +59,24 @@ class Lidar:
             point.orientation.y = q[2]
             point.orientation.z = q[3]
             poses.append(point)
+            poses_generic.append((round(all_clusters[i,0]),
+                                  round(all_clusters[i,1])))
 
-        for pose in poses:
-            x, y = round(pose.position.x, 1), round(pose.position.y, 1)
-            if (x,y) in self.feature_dict:
-                self.feature_dict[(x,y)] += 1
-            else:
-                self.feature_dict[(x,y)] = 1
+        score = [0] * len(self.feature_list_list)
+        # print self.feature_list_list
+        # print poses_generic
+        for i in range(len(self.feature_list_list)):
+            for pose in poses_generic:
+                if pose in self.feature_list_list[i]:
+                    score[i] += 1.0
+            score[i] = round(score[i] / len(self.feature_list_list[i]), 2)
 
-        print "Known landmarks: ", self.feature_dict
+        self.feature_list_list.append(poses_generic)
+
+        # Generally, the highest score greater than 0.5 is considered the matching location
+        # If no scores meet this category, then no match has been found
+        print "Strength of matches with existing poses: ", score
+
         msg = PoseArray()
         msg.poses = poses
         msg.header.frame_id = 'laser_frame'

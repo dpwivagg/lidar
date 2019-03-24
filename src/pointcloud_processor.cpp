@@ -20,15 +20,13 @@ class LaserScanDatabase {
 public:
     LaserScanDatabase() {
         pub_ = n_.advertise<sensor_msgs::PointCloud2>("pclmatch", 1000);
-        pub_b = n_.advertise<sensor_msgs::PointCloud2>("scanbefore", 1000);
-        pub_a = n_.advertise<sensor_msgs::PointCloud2>("scanafter", 1000);
         sub_ = n_.subscribe("rescan", 1, &LaserScanDatabase::callback, this);
     }
 
     void callback(const sensor_msgs::LaserScan::ConstPtr& scan_in) {
         std::cout << "Recieved new point, checking for matches in the database" << std::endl;
         sensor_msgs::PointCloud2 cloud;
-        sensor_msgs::PointCloud2 cloud_publish;
+//        sensor_msgs::PointCloud2 cloud_publish;
         projector_.projectLaser(*scan_in, cloud);
 
         pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
@@ -39,29 +37,38 @@ public:
         icp.setInputSource(cloud_in);
 
         if(saved_clouds.size() == 0) saved_clouds.push_back(cloud_in);
-
+// Change this to take highest confidence transformation, adding new point cloud to DB if there are no transfomrations with confidence under a certain threshold
+	float best_fitness_score = 0.6;
+	int best_fit_cloud = -1;
         for(int i = 0; i < saved_clouds.size(); i++) {
             // do something to compare the cloud with each one in the DB
             // if no match, add the cloud to the DB
             *cloud_out = *saved_clouds[i];
-            pcl::toROSMsg(*cloud_out, cloud_publish);
-            pub_b.publish(cloud_publish);
             icp.setInputTarget(cloud_out);
             pcl::PointCloud<pcl::PointXYZ> Final;
             icp.align(Final);
 
             std::cout << "has converged:" << icp.hasConverged() << " score: " <<
                       icp.getFitnessScore() << std::endl;
-            if(icp.getFitnessScore() < 0.15) {
-                std::cout << "final match selected" << std::endl;
-                pcl::toROSMsg(*cloud_out, cloud_publish);
-                pub_.publish(cloud_publish);
-                return;
-            } // If it matches one, do nothing, end the callback
-//            std::cout << icp.getFinalTransformation() << std::endl;
+            if(icp.getFitnessScore() < best_fitness_score) {
+                // std::cout << "final match selected" << std::endl;
+                // std::cout << icp.getFinalTransformation() << std::endl;
+                // return;
+		best_fitness_score = icp.getFitnessScore();
+		best_fit_cloud = i;
+            } 
         }
-        saved_clouds.push_back(cloud_out);
-        std::cout << "Size of database: " << saved_clouds.size() << std::endl;
+	if(best_fit_cloud == -1) {
+		// no matches found so add the current point cloud
+		saved_clouds.push_back(cloud_in);
+		std::cout << "Size of database: " << saved_clouds.size() << std::endl;
+	} else {
+		std::cout << "Best cloud is located at index " << best_fit_cloud << std::endl;
+		sensor_msgs::PointCloud2 ros_best_match;
+		pcl::toROSMsg(*saved_clouds[best_fit_cloud], ros_best_match);
+		pub_.publish(ros_best_match);
+	}
+	
     }
 
 
@@ -69,7 +76,7 @@ private:
     laser_geometry::LaserProjection projector_;
 
     ros::NodeHandle n_;
-    ros::Publisher pub_, pub_b, pub_a;
+    ros::Publisher pub_;
     ros::Subscriber sub_;
 
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> saved_clouds;
