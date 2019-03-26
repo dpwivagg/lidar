@@ -15,7 +15,7 @@ the User Manual PDF.
 - The Point Cloud Library (PCL) is used in this project. PCL can be downloaded at 
 [http://www.pointclouds.org/downloads/](http://www.pointclouds.org/downloads/).
 - Python dependencies include Scikit Learn for the Mean-Shift algorithm, Numpy, and the TF transformations
-library. These can be installed with `pip install -r requirements.txt` in the project root.
+library. These can be installed with Pip.
 
 ## Setup
 1. Clone this repository into your existing Catkin workspace using Git
