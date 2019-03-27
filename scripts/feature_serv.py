@@ -5,7 +5,7 @@ To run this node:
 Make sure the roscore is running
 Run the following command:
 
-    rosrun lidar_slam plot_lidar.py
+    rosrun lidar_slam feature_serv.py
 
 """
 

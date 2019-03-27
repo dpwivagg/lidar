@@ -5,7 +5,7 @@ To run this node:
 Make sure the roscore is running
 Run the following command:
 
-    rosrun lidar_slam plot_lidar.py
+    rosrun lidar_slam mean_shift_features.py
 
 """
 
@@ -102,12 +102,9 @@ class Lidar:
 
 if __name__ == '__main__':
     rospy.sleep(1)
-    rospy.init_node('sensor_read')
+    rospy.init_node('mean_shift_features')
     sensor = Lidar()
 
     while not rospy.is_shutdown():
         pass
-
-
-
 

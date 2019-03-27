@@ -43,7 +43,7 @@ $ rosrun lidar_slam feature_serv.py
 ##### Mean-Shift algorithm node
 To extract Mean-Shift features from incoming point clouds, run the node:
 ```bash
-$ rosrun lidar_slam plot_lidar.py
+$ rosrun lidar_slam mean_shift_features.py
 ```
 The features are published to the topic `/corners`, since Mean-Shift commonly identifies corners to be features.
 To view these features, subscribe to the `/corners` topic using RVIZ. The message type is PoseArray and 
